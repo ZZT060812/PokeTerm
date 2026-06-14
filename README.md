@@ -1,65 +1,24 @@
 # PokeTerm
 
-> **A Claude Code skill** — type `/poketerm` in any Claude Code session to instantly share your terminal to phone or tablet. Sync your terminal to any browser via WebSocket + tmux. Zero client install.
+> **A Claude Code skill** — type `/poketerm` in any Claude Code session to share your terminal to phone or tablet. WebSocket + tmux, zero client install.
 
-## Why
+## What it does
 
-You're running Claude Code or training a model on your main machine. You step out for lunch, attend a lecture, or your laptop runs out of battery — but your AI task is still running. Open a browser on your phone, see the exact same terminal, and keep working.
+You're running Claude Code on your main machine. You step out — `/poketerm` gives you a URL. Open it on your phone and see the exact same terminal, with a file manager on the side. Both devices share the same tmux session, so input and output are fully synchronized.
 
-PokeTerm is designed as a **Claude Code skill** — drop it into `.claude/skills/` and invoke it from any conversation with `/poketerm`. It auto-detects your tmux session, starts the server, and prints a URL + token you can open on any device.
+## Install
 
-## How It Works
-
-```
-Main Machine                          Phone / Tablet
-┌──────────────────┐                 ┌──────────────┐
-│ tmux session     │                 │  Browser     │
-│  ┌────────────┐  │    WebSocket    │  ┌────────┐  │
-│  │ zsh        │◄─┼────────────────┼─►│ xterm  │  │
-│  │ └─ claude  │  │  Terminal I/O   │  └────────┘  │
-│  │  > code... │  │  File ops       │  ┌────────┐  │
-│  └────────────┘  │                 │  │Files   │  │
-│                  │                 │  └────────┘  │
-└──────────────────┘                 └──────────────┘
-```
-
-- **tmux** provides a persistent PTY that multiple clients can attach to — same screen on both devices
-- **Server** (Java 21 + Spring Boot + pty4j) bridges tmux to the browser over WebSocket
-- **Client** (xterm.js + vanilla JS) runs in any browser, no install needed
-
-## Quick Start
-
-### Prerequisites
-
-- Java 21+
-- Maven 3.9+
-- tmux (`brew install tmux`)
-
-### One command
+Drop the skill file into your project:
 
 ```bash
-mvn spring-boot:run
+cp .claude/skills/poketerm.md ~/your-project/.claude/skills/
 ```
 
-Then open `http://localhost:8765` in any browser, enter the token printed in the console.
+Or copy it to `~/.claude/skills/` for global access across all projects.
 
-### With tmux (shared terminal view)
+Requires Java 21+, Maven 3.9+, tmux.
 
-```bash
-# On your main machine
-tmux new -s work
-# Inside tmux, run your AI tool
-claude
-
-# In another terminal, start the server in tmux mode
-TERM_TMUX_SESSION=work mvn spring-boot:run
-```
-
-Now your phone browser shows the same tmux session — same Claude Code screen, same output.
-
-### Claude Code /poketerm skill
-
-Copy `.claude/skills/poketerm.md` to your project's `.claude/skills/` directory. Then inside any Claude Code session:
+## Use
 
 ```
 > /poketerm
@@ -68,128 +27,59 @@ Copy `.claude/skills/poketerm.md` to your project's `.claude/skills/` directory.
   Local:   http://localhost:8765
   Network: http://192.168.1.5:8765
   Token:   a1b2c3d4e5f6
+
+  Open in any browser. Enter the token when prompted.
 ```
 
-### Build standalone JAR
+The skill auto-detects your tmux session. If you're not in one, it creates a `work` session for you. Your Claude Code conversation is not interrupted.
+
+You get:
+- **A real terminal** — same PTY, same shell, same Claude Code screen. Type from either device.
+- **A file manager** — browse, edit, create, delete files from your phone.
+- **Auto-reconnect** — network drop? Picks up where you left off, replays missed output.
+
+## Remote access
+
+Same WiFi — open the `Network` URL. Outside the house:
 
 ```bash
-mvn package -DskipTests
-java -jar target/PokeTerm-1.0.0.jar
-```
-
-## Remote Access
-
-### Same network
-Open `http://<machine-ip>:8765` — works out of the box.
-
-### Across networks
-
-Pick one (all free, no registration):
-
-```bash
-# Cloudflare Tunnel (recommended)
 cloudflared tunnel --url http://localhost:8765
-
-# bore
-bore local 8765 --to bore.pub
-
-# localtunnel
-npx localtunnel --port 8765
 ```
 
-Each gives a public HTTPS URL. Open it anywhere.
+One command, free, no registration. Opens a public HTTPS URL.
 
-## Features
-
-- **True screen sharing** — tmux attach mode: both devices see identical output, both can type
-- **Real terminal** — full PTY with ANSI colors, supports vim, htop, Claude Code TUI, sudo prompts
-- **File manager** — browse, view, edit, create, delete files on the server from your phone
-- **Auto-reconnect** — WebSocket drops? Reconnects automatically, replays missed terminal output
-- **Responsive** — works on desktop, tablet, and mobile with adaptive layout
-- **Token auth** — simple token-based authentication
-- **Path sandbox** — file operations restricted to workspace root with symlink-aware validation
-- **Zero client install** — any browser works, PWA-ready
-
-## Configuration
-
-| Env var | Description | Default |
-|---------|-------------|---------|
-| `TERM_TOKEN` | Auth token | Random 12-char |
-| `TERM_WORKSPACE` | Working directory | `$HOME` |
-| `TERM_TMUX_SESSION` | tmux session name | (disabled) |
-
-Or use CLI args:
-
-```bash
-java -jar target/PokeTerm-1.0.0.jar --token mytoken --workspace /path/to/project
-```
-
-## Project Structure
+## How it works
 
 ```
-├── pom.xml
-├── src/main/java/com/remoteterm/
-│   ├── App.java                          # Entry point + startup banner
-│   ├── config/WebSocketConfig.java       # WebSocket endpoint config
-│   ├── websocket/TerminalSocketHandler.java  # WS message routing
-│   ├── terminal/PtyManager.java          # PTY lifecycle + ring buffer
-│   ├── terminal/PtyOutputListener.java   # Output callback interface
-│   ├── files/FileHandler.java            # File ops + security sandbox
-│   ├── auth/AuthManager.java             # Token generation/validation
-│   └── protocol/MessageType.java         # WS message type constants
-├── src/main/resources/
-│   ├── application.yml                   # Server config
-│   └── static/
-│       ├── index.html                    # SPA entry
-│       ├── style.css                     # Dark theme + responsive
-│       ├── app.js                        # WS connection + auto-reconnect
-│       ├── terminal.js                   # xterm.js integration
-│       └── filemanager.js                # File tree + operations
-├── .claude/skills/poketerm.md            # Claude Code skill
-├── 技术架构.md                            # Architecture doc (Chinese)
-├── README.md
-└── LICENSE
+Claude Code session          Phone / Tablet
+┌──────────────┐            ┌──────────────┐
+│ /poketerm    │──spawns──►│ Java server   │◄──WebSocket──► Browser
+│ tmux session │            │ + pty4j       │   terminal I/O
+│   zsh        │◄──attach──│ tmux attach   │   file ops
+│   └─ claude  │            └──────────────┘
+└──────────────┘
 ```
 
-## WebSocket Protocol
+The server uses `tmux attach` to join your session. Everything you see in your terminal is streamed to the browser over WebSocket. xterm.js renders it with full ANSI color support. File operations go over the same WebSocket connection.
 
-All messages JSON over a single WebSocket connection (`/ws`):
-
-| Message | Direction | Description |
-|---------|-----------|-------------|
-| `auth` | Client → Server | Token authentication |
-| `term.init` | Client → Server | Initialize/resize terminal |
-| `term.input` | Client → Server | Keystroke data (Base64) |
-| `term.output` | Server → Client | Terminal output (Base64) |
-| `term.replay` | Server → Client | History replay on reconnect |
-| `term.resize` | Client → Server | Window resize event |
-| `fs.list` | Bidirectional | List directory contents |
-| `fs.read` | Bidirectional | Read file content |
-| `fs.write` | Bidirectional | Write/create file |
-| `fs.delete` | Bidirectional | Delete file or directory |
-| `fs.mkdir` | Bidirectional | Create directory |
-
-Terminal data is Base64-encoded to safely transmit raw bytes (ANSI escape sequences) over JSON.
-
-## Tech Stack
+## Tech
 
 | Layer | Choice |
 |-------|--------|
-| Language | Java 21 LTS |
-| Framework | Spring Boot 3.3.x |
-| PTY | pty4j 0.13.x (JetBrains) |
-| Build | Maven 3.9+ |
-| Terminal UI | xterm.js 5.x |
+| Skill | Claude Code skill (`.md`) |
+| Server | Java 21 + Spring Boot 3.3 |
+| PTY | pty4j (JetBrains) |
+| Screen share | tmux |
+| Frontend | xterm.js + vanilla JS |
 | Protocol | JSON over WebSocket |
-| Screen sharing | tmux |
+| Auth | Token (constant-time compare) |
 
 ## Security
 
-- Token authentication required for all WebSocket connections
-- File operations sandboxed to workspace root with symlink-aware path validation
+- Token required for WebSocket connection
+- File ops sandboxed to workspace root (symlink-aware)
 - Sensitive files (`.env`, `.git/config`) flagged on read
-- Files >1MB show truncated preview
-- Constant-time token comparison to prevent timing attacks
+- >1MB files show truncated preview
 
 ## License
 
