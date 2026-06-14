@@ -1,6 +1,6 @@
 ---
-name: remote-term
-description: Start the remote terminal server to monitor AI sessions from phone/tablet.
+name: poketerm
+description: Sync your terminal to phone/tablet — monitor Claude Code sessions from any browser.
 ---
 
 # Remote AI Terminal Skill
@@ -9,7 +9,7 @@ Starts a remote terminal server. Uses tmux for shared terminal sessions — you 
 
 ## When to invoke
 
-User invokes `/remote-term` or says things like:
+User invokes `/poketerm` or says things like:
 - "start remote" / "open remote" / "let me check from phone"
 - "I'm stepping out but want to monitor"
 - "connect my phone to this session"
@@ -144,5 +144,5 @@ pkill -f "com.remoteterm.App"
 tmux kill-session -t work
 
 # Restart
-/remote-term
+/poketerm
 ```

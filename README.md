@@ -1,10 +1,12 @@
 # PokeTerm
 
-Sync your terminal to any browser. Monitor AI coding sessions from phone, tablet, or laptop via WebSocket. tmux-powered screen sharing, zero client install.
+> **A Claude Code skill** — type `/poketerm` in any Claude Code session to instantly share your terminal to phone or tablet. Sync your terminal to any browser via WebSocket + tmux. Zero client install.
 
 ## Why
 
 You're running Claude Code or training a model on your main machine. You step out for lunch, attend a lecture, or your laptop runs out of battery — but your AI task is still running. Open a browser on your phone, see the exact same terminal, and keep working.
+
+PokeTerm is designed as a **Claude Code skill** — drop it into `.claude/skills/` and invoke it from any conversation with `/poketerm`. It auto-detects your tmux session, starts the server, and prints a URL + token you can open on any device.
 
 ## How It Works
 
@@ -55,12 +57,12 @@ TERM_TMUX_SESSION=work mvn spring-boot:run
 
 Now your phone browser shows the same tmux session — same Claude Code screen, same output.
 
-### Claude Code /remote-term skill
+### Claude Code /poketerm skill
 
-Place `.claude/skills/remote-term.md` in your project's `.claude/skills/` directory. Then inside any Claude Code session:
+Copy `.claude/skills/poketerm.md` to your project's `.claude/skills/` directory. Then inside any Claude Code session:
 
 ```
-> /remote-term
+> /poketerm
 
   Remote terminal ready — tmux session: work
   Local:   http://localhost:8765
@@ -143,7 +145,7 @@ java -jar target/PokeTerm-1.0.0.jar --token mytoken --workspace /path/to/project
 │       ├── app.js                        # WS connection + auto-reconnect
 │       ├── terminal.js                   # xterm.js integration
 │       └── filemanager.js                # File tree + operations
-├── .claude/skills/remote-term.md         # Claude Code skill
+├── .claude/skills/poketerm.md            # Claude Code skill
 ├── 技术架构.md                            # Architecture doc (Chinese)
 ├── README.md
 └── LICENSE
