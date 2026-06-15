@@ -159,6 +159,55 @@ body {
 .output-line { display: inline; }
 .cmd-echo { color: var(--text2); }
 
+/* ---- Permission bar ---- */
+#perm-bar {
+    display: none;
+    position: absolute; bottom: 38px; left: 0; right: 0;
+    align-items: center; gap: 8px;
+    padding: 8px 14px;
+    background: rgba(255,248,230,0.95);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid #f0d070;
+    border-bottom: 1px solid #f0d070;
+    min-height: 42px;
+    z-index: 10;
+}
+#perm-bar.active { display: flex; }
+#perm-text {
+    flex: 1;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    color: #8b6914;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.perm-buttons {
+    display: flex; gap: 6px; flex-shrink: 0;
+}
+.perm-btn {
+    padding: 5px 14px;
+    border: 1px solid;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.perm-yes {
+    background: #22c55e; color: #fff; border-color: #16a34a;
+}
+.perm-yes:hover { background: #16a34a; }
+.perm-always {
+    background: #3b82f6; color: #fff; border-color: #2563eb;
+}
+.perm-always:hover { background: #2563eb; }
+.perm-no {
+    background: #ef4444; color: #fff; border-color: #dc2626;
+}
+.perm-no:hover { background: #dc2626; }
+
 /* ---- Command bar ---- */
 #cmd-bar {
     position: absolute; bottom: 0; left: 0; right: 0;
@@ -274,6 +323,9 @@ body {
     #output-panel { font-size: 12px; padding: 8px 10px; }
     #cmd-input { font-size: 12px; }
     .key-btn { width: 26px; height: 24px; font-size: 10px; margin-left: 2px; }
+    #perm-bar { padding: 6px 10px; gap: 4px; min-height: 36px; }
+    #perm-text { font-size: 11px; }
+    .perm-btn { padding: 4px 10px; font-size: 11px; }
 }
 
 @media (min-width: 769px) {

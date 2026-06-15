@@ -40,12 +40,11 @@ public class PtyManager {
     private volatile boolean alive;
     private Thread pollingThread;
     private String tmuxSession;
-    // Smart debounce: first change sends immediately, subsequent redraws are batched
+    // Pure debounce: only flush after pane stabilizes (no changes for SETTLE_MS)
     private String baseline = "";
     private String latest = "";
     private long lastChangeMs = 0;
-    private boolean inDebounce = false;
-    private static final long SETTLE_MS = 300;
+    private static final long SETTLE_MS = 250;
     private static final int POLL_INTERVAL_MS = 200;
 
     public void setListener(PtyOutputListener listener) {
@@ -85,29 +84,17 @@ public class PtyManager {
                     if (!clean.equals(latest)) {
                         latest = clean;
                         lastChangeMs = System.currentTimeMillis();
-                        if (!inDebounce) {
-                            // First change: send immediately (low latency)
-                            String diff = diff(baseline, latest);
-                            baseline = latest;
-                            if (!diff.isEmpty()) {
-                                PtyOutputListener l = listener;
-                                if (l != null) l.onOutput(diff);
-                            }
-                            inDebounce = true;
-                        }
                     }
 
-                    // After settling: flush any accumulated redraw changes
-                    if (inDebounce && System.currentTimeMillis() - lastChangeMs >= SETTLE_MS) {
-                        if (!latest.equals(baseline)) {
-                            String diff = diff(baseline, latest);
-                            baseline = latest;
-                            if (!diff.isEmpty()) {
-                                PtyOutputListener l = listener;
-                                if (l != null) l.onOutput(diff);
-                            }
+                    // Flush only after pane has stabilized — skip intermediate redraws
+                    long elapsed = System.currentTimeMillis() - lastChangeMs;
+                    if (!latest.equals(baseline) && elapsed >= SETTLE_MS) {
+                        String diff = diff(baseline, latest);
+                        baseline = latest;
+                        if (!diff.isEmpty()) {
+                            PtyOutputListener l = listener;
+                            if (l != null) l.onOutput(diff);
                         }
-                        inDebounce = false;
                     }
                 } catch (InterruptedException e) {
                     break;
@@ -145,19 +132,30 @@ public class PtyManager {
         }
     }
 
-    /** Diff: return suffix of current that is new relative to old. */
+    /** Diff: extract only the truly new content between old and current.
+     *  Uses longest-common-prefix + longest-common-suffix to handle mid-block insertions. */
     private static String diff(String old, String current) {
         if (current.startsWith(old)) {
             return current.substring(old.length());
         }
-        // After screen clear or major change, try to find overlap
-        int overlapLen = Math.min(old.length(), current.length());
-        for (int i = overlapLen; i > 0; i--) {
-            if (old.endsWith(current.substring(0, i))) {
-                return current.substring(i);
-            }
+
+        int minLen = Math.min(old.length(), current.length());
+
+        // Longest common prefix
+        int prefix = 0;
+        while (prefix < minLen && old.charAt(prefix) == current.charAt(prefix)) {
+            prefix++;
         }
-        return current;
+
+        // Longest common suffix (from the end, within un-matched region)
+        int suffix = 0;
+        int maxSuffix = minLen - prefix;
+        while (suffix < maxSuffix
+                && old.charAt(old.length() - 1 - suffix) == current.charAt(current.length() - 1 - suffix)) {
+            suffix++;
+        }
+
+        return current.substring(prefix, current.length() - suffix);
     }
 
     /** Direct-shell mode: spawn PTY and read stream. */
