@@ -1,8 +1,9 @@
-// File tree manager
+// File tree manager with lazy loading
 const FileManager = {
     currentPath: '.',
     contextTarget: null,
     pendingAction: null,
+    pendingContainer: null,
 
     init() {
         this._loadTree('.');
@@ -10,7 +11,6 @@ const FileManager = {
     },
 
     _bindEvents() {
-        // Context menu
         document.addEventListener('click', () => {
             document.getElementById('context-menu').style.display = 'none';
         });
@@ -22,7 +22,6 @@ const FileManager = {
             });
         });
 
-        // Editor modal
         document.getElementById('editor-close').addEventListener('click', () => {
             document.getElementById('editor-modal').style.display = 'none';
         });
@@ -33,7 +32,6 @@ const FileManager = {
             document.getElementById('editor-modal').style.display = 'none';
         });
 
-        // New item modal
         document.getElementById('new-close').addEventListener('click', () => {
             document.getElementById('new-modal').style.display = 'none';
         });
@@ -52,7 +50,7 @@ const FileManager = {
             setTimeout(() => this._loadTree(this.currentPath), 300);
         });
 
-        // Long-press for mobile
+        // Long-press for mobile context menu
         let longPressTimer;
         document.getElementById('file-tree').addEventListener('touchstart', (e) => {
             const row = e.target.closest('.tree-row');
@@ -61,14 +59,10 @@ const FileManager = {
                 this._showContextMenu(row, e.touches[0].clientX, e.touches[0].clientY);
             }, 500);
         });
-        document.getElementById('file-tree').addEventListener('touchend', () => {
-            clearTimeout(longPressTimer);
-        });
-        document.getElementById('file-tree').addEventListener('touchmove', () => {
-            clearTimeout(longPressTimer);
-        });
+        document.getElementById('file-tree').addEventListener('touchend', () => clearTimeout(longPressTimer));
+        document.getElementById('file-tree').addEventListener('touchmove', () => clearTimeout(longPressTimer));
 
-        // Click to close sidebar on mobile
+        // Click terminal area closes mobile sidebar
         document.getElementById('terminal-container').addEventListener('click', () => {
             document.getElementById('sidebar').classList.remove('open');
         });
@@ -82,25 +76,38 @@ const FileManager = {
     onList(msg) {
         const files = msg.files || [];
         const path = msg.path || '.';
-        const tree = document.getElementById('file-tree');
 
+        // Subdirectory lazy-load response
+        if (this.pendingContainer && path !== '.' && path !== this.currentPath) {
+            const container = this.pendingContainer;
+            this.pendingContainer = null;
+            // Infer parent depth from the container's parent row
+            const parentRow = container.closest('.tree-node')?.querySelector('.tree-row');
+            const childDepth = parentRow ? (parseInt(parentRow.dataset.depth) || 0) + 1 : 1;
+            container.innerHTML = '';
+            files.forEach(f => {
+                const fullPath = path + '/' + f.name;
+                container.appendChild(this._createNode(fullPath, f.isDir, false, childDepth));
+            });
+            return;
+        }
+
+        // Root / current directory reload
+        const tree = document.getElementById('file-tree');
         if (path === '.' || path === this.currentPath) {
             tree.innerHTML = '';
-            // Root entry
-            const rootEl = this._createNode('.', true, true);
+            const rootEl = this._createNode('.', true, true, 0);
             tree.appendChild(rootEl);
             const children = rootEl.querySelector('.tree-children');
             children.classList.add('open');
             files.forEach(f => {
-                children.appendChild(this._createNode(
-                    path === '.' ? f.name : path + '/' + f.name,
-                    f.isDir, false
-                ));
+                const childPath = path === '.' ? f.name : path + '/' + f.name;
+                children.appendChild(this._createNode(childPath, f.isDir, false, 1));
             });
         }
     },
 
-    _createNode(path, isDir, isRoot) {
+    _createNode(path, isDir, isRoot, depth) {
         const node = document.createElement('div');
         node.className = 'tree-node';
 
@@ -108,30 +115,28 @@ const FileManager = {
         row.className = 'tree-row';
         row.dataset.path = path;
         row.dataset.isDir = isDir;
+        row.dataset.depth = depth;
+        // Each level indented 16px, root starts at 12px
+        row.style.paddingLeft = (12 + depth * 16) + 'px';
 
-        // Arrow (for dirs)
         const arrow = document.createElement('span');
         arrow.className = 'tree-arrow';
         arrow.textContent = isDir ? '▶' : ' ';
         row.appendChild(arrow);
 
-        // Icon
         const icon = document.createElement('span');
         icon.className = 'tree-icon';
         icon.textContent = isDir ? '📁' : '📄';
         row.appendChild(icon);
 
-        // Name
         const name = document.createElement('span');
         name.className = 'tree-name';
         name.textContent = isRoot ? '/' : path.split('/').pop();
         row.appendChild(name);
 
-        // Click: open dir or file
         row.addEventListener('click', (e) => {
             e.stopPropagation();
-            // Toggle selection
-            tree.querySelectorAll('.tree-row.selected').forEach(r => r.classList.remove('selected'));
+            document.querySelectorAll('.tree-row.selected').forEach(r => r.classList.remove('selected'));
             row.classList.add('selected');
 
             if (isDir) {
@@ -141,7 +146,6 @@ const FileManager = {
             }
         });
 
-        // Right-click context menu
         row.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             this._showContextMenu(row, e.clientX, e.clientY);
@@ -149,17 +153,13 @@ const FileManager = {
 
         node.appendChild(row);
 
-        // Children container
         const children = document.createElement('div');
         children.className = 'tree-children';
         node.appendChild(children);
 
-        // Load children for dirs
+        // Directories are loaded lazily — no eager fs.list here
         if (isDir) {
-            App.send({ type: 'fs.list', path: path });
-            // Store partial data; onList will fill children
             row._childrenLoaded = false;
-            // For the initial load, we don't eagerly fetch all subdirs
         }
 
         return node;
@@ -173,24 +173,18 @@ const FileManager = {
         const isOpen = children.classList.toggle('open');
         arrow.classList.toggle('open', isOpen);
 
+        // Lazy load: only fetch when expanding for the first time
         if (isOpen && !row._childrenLoaded) {
             const path = row.dataset.path;
             row._childrenLoaded = true;
-            // Load subdirectory
-            this._loadSubDir(path, children);
+            children.innerHTML = '<div class="tree-loading">...</div>';
+            this.pendingContainer = children;
+            App.send({ type: 'fs.list', path: path });
         }
 
-        // Close sidebar on mobile after selection
         if (window.innerWidth <= 768) {
             setTimeout(() => document.getElementById('sidebar').classList.remove('open'), 200);
         }
-    },
-
-    _loadSubDir(path, container) {
-        // We need a way to handle subdir loads. Use a callback-based approach.
-        // Store the container reference and issue the list request.
-        this._pendingContainer = container;
-        App.send({ type: 'fs.list', path: path });
     },
 
     onRead(msg) {
@@ -221,12 +215,9 @@ const FileManager = {
             path: row.dataset.path,
             isDir: row.dataset.isDir === 'true'
         };
-
-        // Adjust menu items based on type
         menu.querySelector('[data-action="delete"]').style.display = 'block';
         menu.querySelector('[data-action="download"]').style.display =
             this.contextTarget.isDir ? 'none' : 'block';
-
         menu.style.display = 'block';
         menu.style.left = Math.min(x, window.innerWidth - 170) + 'px';
         menu.style.top = Math.min(y, window.innerHeight - 160) + 'px';
@@ -257,21 +248,4 @@ const FileManager = {
                 break;
         }
     }
-};
-
-// Patch onList to also handle subdirectory loads
-const origOnList = FileManager.onList.bind(FileManager);
-FileManager.onList = function(msg) {
-    // Handle subdirectory loads
-    if (this._pendingContainer && msg.path !== '.' && msg.path !== this.currentPath) {
-        const container = this._pendingContainer;
-        this._pendingContainer = null;
-        container.innerHTML = '';
-        (msg.files || []).forEach(f => {
-            const fullPath = msg.path + '/' + f.name;
-            container.appendChild(this._createNode(fullPath, f.isDir, false));
-        });
-        return;
-    }
-    origOnList(msg);
 };

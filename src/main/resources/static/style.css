@@ -123,6 +123,12 @@ body {
 .tree-name { overflow: hidden; text-overflow: ellipsis; }
 .tree-children { display: none; }
 .tree-children.open { display: block; }
+.tree-loading {
+    padding: 2px 28px;
+    font-size: 0.75rem;
+    color: var(--text2);
+    font-style: italic;
+}
 
 /* ---- Terminal container ---- */
 #terminal-container {
